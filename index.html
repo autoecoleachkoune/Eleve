@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ACHKOUNE BI</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700;800&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+<style>
+:root{--bg:#f4f7fb;--card:#fff;--blue:#1e3a8a;--blue2:#2563eb;--green:#10b981;--red:#ef4444;--orange:#f97316;--text:#0f172a;--gray:#64748b;--border:#e2e8f0}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+body{font-family:'Poppins',sans-serif;background:var(--bg);color:var(--text);padding-bottom:84px}
+header{background:linear-gradient(135deg,#1e3a8a,#2563eb);color:#fff;padding:14px 16px;padding-top:calc(14px + env(safe-area-inset-top,0px));position:sticky;top:0;z-index:50}
+header h1{font-size:18px;font-weight:800}header small{opacity:.8;font-size:11px}
+.hrow{display:flex;justify-content:space-between;align-items:center;gap:8px}
+button{font-family:inherit;cursor:pointer}
+.btn{background:#fff;color:var(--blue);border:none;border-radius:10px;padding:8px 12px;font-weight:700;font-size:12px}
+.btn.dark{background:var(--blue);color:#fff}
+.page{display:none;padding:14px}.page.on{display:block}
+.card{background:var(--card);border-radius:16px;padding:14px;margin-bottom:12px;box-shadow:0 4px 20px rgba(30,58,138,.08)}
+.card h2{font-size:14px;font-weight:800;margin-bottom:10px;color:var(--blue)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.kpi{background:var(--card);border-radius:14px;padding:12px;box-shadow:0 4px 20px rgba(30,58,138,.08)}
+.kpi .l{font-size:11px;color:var(--gray);font-weight:600}.kpi .v{font-size:19px;font-weight:800;margin-top:2px}
+.kpi .s{font-size:10px;color:var(--gray);margin-top:2px}
+.pos{color:var(--green)}.neg{color:var(--red)}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th{text-align:left;color:var(--gray);font-weight:600;padding:6px 4px;border-bottom:1px solid var(--border)}
+td{padding:7px 4px;border-bottom:1px solid #f1f5f9}
+.wrap{overflow-x:auto}
+nav{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid var(--border);display:flex;padding-bottom:env(safe-area-inset-bottom,0px);z-index:60}
+nav button{flex:1;background:none;border:none;padding:9px 2px;font-size:10px;font-weight:700;color:var(--gray)}
+nav button.on{color:var(--blue2)}nav button span{display:block;font-size:19px}
+select,input{font-family:inherit;font-size:14px;padding:9px;border:1px solid var(--border);border-radius:10px;width:100%;margin-bottom:8px;background:#fff}
+.bar{height:10px;background:#e2e8f0;border-radius:6px;overflow:hidden}.bar i{display:block;height:100%;background:var(--blue2)}
+.alert{padding:10px;border-radius:10px;font-size:12px;margin-bottom:8px;background:#fff7ed;border-left:4px solid var(--orange)}
+.alert.r{background:#fef2f2;border-color:var(--red)}.alert.g{background:#ecfdf5;border-color:var(--green)}
+.tag{display:inline-block;font-size:10px;font-weight:800;padding:2px 8px;border-radius:20px}
+.t-real{background:#dbeafe;color:#1e40af}.t-est{background:#fef3c7;color:#92400e}
+.chart{display:flex;align-items:flex-end;gap:4px;height:120px;margin-top:6px}
+.chart div{flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;font-size:9px;color:var(--gray)}
+.chart b{display:block;width:100%;background:var(--blue2);border-radius:4px 4px 0 0;min-height:2px}
+.chart b.o{background:var(--green)}
+.note{font-size:11px;color:var(--gray);line-height:1.5}
+#load{text-align:center;padding:40px 16px;color:var(--gray);font-size:13px}
+</style>
+</head>
+<body>
+<header><div class="hrow"><div><h1>📊 ACHKOUNE BI</h1><small id="sync">Non synchronisé</small></div><button class="btn" onclick="refresh(true)">🔄 Actualiser</button></div></header>
+<div id="load">Chargement…</div>
+
+<div class="page" id="p-dash"></div>
+<div class="page" id="p-fin"></div>
+<div class="page" id="p-packs"></div>
+<div class="page" id="p-veh"></div>
+<div class="page" id="p-cand"></div>
+
+<nav>
+<button class="on" onclick="go('dash',this)"><span>🏠</span>Accueil</button>
+<button onclick="go('fin',this)"><span>💰</span>Finance</button>
+<button onclick="go('packs',this)"><span>📦</span>Packs</button>
+<button onclick="go('veh',this)"><span>🚗</span>Voitures</button>
+<button onclick="go('cand',this)"><span>👥</span>Élèves</button>
+</nav>
+
+<script>
+/* ── CONFIG (lecture seule — aucune écriture sur les collections opérationnelles) ── */
+var FB_CONFIG={apiKey:"AIzaSyCeqD1MEDQyYFViCRG88xqjBcnsLtcsTa0",authDomain:"achkoune-app.firebaseapp.com",projectId:"achkoune-app",storageBucket:"achkoune-app.firebasestorage.app",messagingSenderId:"25360989092",appId:"1:25360989092:web:3f762f64c360884c50df31"};
+var CACHE_KEY="achBI_cache_v1", CACHE_TTL=6*3600*1000; /* 6 h : limite les lectures Firestore */
+var PACKS={silver:{n:"Silver",s:12},platinum:{n:"Platinum",s:20},gold:{n:"Gold",s:25},premium:{n:"Premium",s:20}};
+var MOIS=["Jan","Fév","Mar","Avr","Mai","Juin","Juil","Août","Sep","Oct","Nov","Déc"];
+var DATA={clients:[],seances:[],resas:[],ts:0};
+var CFG=load("achBI_cfg",{coutHeure:{1:0,2:0},inactifJours:15,mois:null});
+var DEPENSES=load("achBI_dep",[]); /* dépenses : stockées localement uniquement */
+function load(k,d){try{var v=JSON.parse(localStorage.getItem(k));return v==null?d:v}catch(e){return d}}
+function save(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
+function fmt(n){return Math.round(n||0).toLocaleString("fr-FR").replace(/\u202f/g," ")+" DH"}
+function pct(a,b){return b>0?Math.round(a/b*100):0}
+
+/* ── DATES ── */
+function pd(s){ /* "j/m/aaaa" ou "aaaa-mm-jj" → Date */
+  if(!s)return null;s=String(s).trim();var p;
+  if(s.indexOf("/")>0){p=s.split("/");return new Date(+p[2],+p[1]-1,+p[0])}
+  if(s.indexOf("-")>0){p=s.split("-");if(p[0].length===4)return new Date(+p[0],+p[1]-1,+p[2]);return new Date(+p[2],+p[1]-1,+p[0])}
+  return null}
+function ym(d){return d?d.getFullYear()*100+d.getMonth()+1:0}
+function curYM(){var n=new Date();return CFG.mois||ym(n)}
+function prevYM(v){var y=Math.floor(v/100),m=v%100;m--;if(m<1){m=12;y--}return y*100+m}
+function ymLabel(v){return MOIS[(v%100)-1]+" "+Math.floor(v/100)}
+
+/* ── FIREBASE (get() uniquement) ── */
+var db=null;
+function initFb(){if(!db){firebase.initializeApp(FB_CONFIG);db=firebase.firestore()}}
+function readAll(name){return db.collection(name).get().then(function(s){var a=[];s.forEach(function(d){var x=d.data();x._id=d.id;a.push(x)});return a})}
+function refresh(force){
+  var c=load(CACHE_KEY,null);
+  if(!force&&c&&Date.now()-c.ts<CACHE_TTL){DATA=c;return start()}
+  document.getElementById("load").style.display="block";document.getElementById("load").textContent="Lecture de Firestore…";
+  initFb();
+  Promise.all([readAll("clients"),readAll("planning_seances"),readAll("reservations")]).then(function(r){
+    DATA={clients:r[0],seances:r[1],resas:r[2],ts:Date.now()};
+    save(CACHE_KEY,DATA);start();
+  }).catch(function(e){document.getElementById("load").innerHTML="❌ Erreur : "+e.message+"<br><br>"+(c?"<button class='btn dark' onclick='DATA=load(CACHE_KEY,DATA);start()'>Utiliser les dernières données</button>":"")});
+}
+
+/* ── MODÈLE DE DONNÉES ── */
+function paye(c){var t=0;(c.avances||[]).forEach(function(a){t+=Number(a.montant)||0});return t}
+function prixC(c){return Number(c.prix)||0}
+function clientBySerial(){var m={};DATA.clients.forEach(function(c){if(c.serial)m[String(c.serial).trim().toLowerCase()]=c});return m}
+/* Séances réalisées : réservations "effectuee" + séances planning passées (même règle que l'application de gestion) */
+function seancesRealisees(){
+  var out=[],today=new Date();today.setHours(0,0,0,0);
+  DATA.resas.forEach(function(r){if(r.statut==="effectuee")out.push({d:pd(r.dateKey),h:r.heure,v:String(r.voiture||""),serial:(r.serial||"").trim().toLowerCase(),prix:Number(r.prix)||0,min:(r.prix||r.isPremium)?60:30,src:"resa"})});
+  DATA.seances.forEach(function(s){var d=pd(s.dateKey);if(d&&d<today)out.push({d:d,h:s.heure,v:String(s.voiture||""),serial:(s.serial||"").trim().toLowerCase(),prix:Number(s.prix)||0,min:s.prix?60:30,src:"plan",type:s.type})});
+  return out.filter(function(x){return x.d});
+}
+function annulees(){return DATA.resas.filter(function(r){return r.statut==="annulee"})}
+function depMois(v){var t=0;DEPENSES.forEach(function(d){if(ym(pd(d.date))===v)t+=Number(d.montant)||0});return t}
+
+/* ── CALCULS FINANCE ── */
+function finance(v){
+  var ca=0,nb=0,enc=0,encN=0,reste=0;
+  DATA.clients.forEach(function(c){
+    var di=pd(c.inscription)||pd(c.createdAt);
+    if(ym(di)===v){ca+=prixC(c);nb++}
+    (c.avances||[]).forEach(function(a){if(ym(pd(a.date))===v){enc+=Number(a.montant)||0;encN++}});
+  });
+  DATA.clients.forEach(function(c){if(c.statut!=="abandonne")reste+=Math.max(0,prixC(c)-paye(c))});
+  /* Séances à l'heure (particuliers) : encaissées à la séance */
+  var heure=0;seancesRealisees().forEach(function(s){if(s.prix&&ym(s.d)===v)heure+=s.prix});
+  var dep=depMois(v);
+  return {ca:ca,nb:nb,enc:enc,encN:encN,reste:reste,heure:heure,dep:dep,res:enc+heure-dep}
+}
+function serie12(fn){var out=[],v=curYM();for(var i=0;i<12;i++){out.unshift({v:v,x:fn(v)});v=prevYM(v)}return out}
+function chart(arr,key,cls){var mx=Math.max.apply(null,arr.map(function(a){return a.x[key]}))||1;
+  return '<div class="chart">'+arr.map(function(a){return '<div><b class="'+(cls||"")+'" style="height:'+Math.round(a.x[key]/mx*100)+'px"></b>'+MOIS[(a.v%100)-1].slice(0,1)+'</div>'}).join("")+'</div>'}
+function delta(a,b){if(!b)return "";var p=Math.round((a-b)/b*100);return '<span class="'+(p>=0?"pos":"neg")+'">'+(p>=0?"▲ ":"▼ ")+Math.abs(p)+"%</span>"}
+
+/* ── PACKS ── */
+function packStats(){
+  var S=seancesRealisees(),bySerial={};
+  S.forEach(function(s){if(s.serial)bySerial[s.serial]=(bySerial[s.serial]||0)+1});
+  var out={};Object.keys(PACKS).forEach(function(k){out[k]={n:0,ca:0,paye:0,cons:0,quota:0}});
+  DATA.clients.forEach(function(c){var k=c.pack||"platinum";if(!out[k])return;var o=out[k];o.n++;o.ca+=prixC(c);o.paye+=paye(c);o.quota+=PACKS[k].s;o.cons+=Math.min(bySerial[(c.serial||"").trim().toLowerCase()]||0,PACKS[k].s)});
+  return out}
+
+/* ── VÉHICULES ── */
+var HEURES_DISPO_JOUR=10; /* base de calcul de l'occupation : 10 h/jour, modifiable ci-dessous */
+function vehStats(v){
+  var S=seancesRealisees(),res={};
+  [1,2].forEach(function(n){res[n]={done:0,min:0,rev:0,ann:0,mois:0,heures:{}}});
+  S.forEach(function(s){var n=Number(s.v);if(!res[n])return;var r=res[n];r.done++;r.min+=s.min;r.rev+=s.prix;if(ym(s.d)===v)r.mois++;var hh=(s.h||"").split(":")[0];if(hh)r.heures[hh]=(r.heures[hh]||0)+1});
+  annulees().forEach(function(x){var n=Number(x.voiture);if(res[n])res[n].ann++});
+  return res}
+
+/* ── RENDU ── */
+function go(p,b){document.querySelectorAll(".page").forEach(function(e){e.classList.remove("on")});document.getElementById("p-"+p).classList.add("on");document.querySelectorAll("nav button").forEach(function(e){e.classList.remove("on")});b.classList.add("on");window.scrollTo(0,0)}
+function monthSel(){var h='<select onchange="CFG.mois=+this.value;save(\'achBI_cfg\',CFG);start()">',v=ym(new Date());for(var i=0;i<18;i++){h+='<option value="'+v+'"'+(v===curYM()?" selected":"")+'>'+ymLabel(v)+'</option>';v=prevYM(v)}return h+'</select>'}
+function kpi(l,v,s,c){return '<div class="kpi"><div class="l">'+l+'</div><div class="v '+(c||"")+'">'+v+'</div><div class="s">'+(s||"")+'</div></div>'}
+
+function rDash(){
+  var v=curYM(),p=prevYM(v),f=finance(v),fp=finance(p);
+  var S=seancesRealisees(),sm=S.filter(function(s){return ym(s.d)===v}).length;
+  var actifs=DATA.clients.filter(function(c){return c.statut==="en-cours"}).length;
+  var vs=vehStats(v);
+  var h=monthSel()+'<div class="grid">'
+   +kpi("Chiffre d'affaires (contrats)",fmt(f.ca),delta(f.ca,fp.ca)+" vs "+ymLabel(p))
+   +kpi("Encaissements",fmt(f.enc+f.heure),delta(f.enc+f.heure,fp.enc+fp.heure)+" vs mois préc.")
+   +kpi("Dépenses",fmt(f.dep),f.dep?"saisies":"aucune saisie","neg")
+   +kpi("Résultat estimé",fmt(f.res),'<span class="tag t-est">estimation</span>',f.res>=0?"pos":"neg")
+   +kpi("Élèves en cours",actifs,f.nb+" nouveaux inscrits")
+   +kpi("Séances réalisées",sm,"voiture 1 : "+vs[1].mois+" · voiture 2 : "+vs[2].mois)
+   +'</div><div class="card" style="margin-top:12px"><h2>Encaissements (12 mois)</h2>'+chart(serie12(function(m){var x=finance(m);return {t:x.enc+x.heure}}),"t","o")+'</div>'
+   +'<div class="card"><h2>⚠️ Alertes</h2>'+alertes()+'</div>';
+  document.getElementById("p-dash").innerHTML=h}
+
+function alertes(){
+  var out=[],sb=clientBySerial(),last={};
+  seancesRealisees().forEach(function(s){if(s.serial&&(!last[s.serial]||s.d>last[s.serial]))last[s.serial]=s.d});
+  DATA.resas.forEach(function(r){if(r.serial){var d=pd(r.dateKey);var k=r.serial.trim().toLowerCase();if(d&&(!last[k]||d>last[k]))last[k]=d}});
+  var now=new Date(),inactifs=[],finis=[],impayes=[];
+  DATA.clients.forEach(function(c){
+    if(c.statut!=="en-cours")return;
+    var k=(c.serial||"").trim().toLowerCase(),l=last[k],max=(PACKS[c.pack||"platinum"]||{s:20}).s;
+    var done=seancesRealisees().filter(function(s){return s.serial===k}).length;
+    if(done<max&&(!l||(now-l)/864e5>CFG.inactifJours))inactifs.push(c);
+    if(done>=max&&Math.max(0,prixC(c)-paye(c))>0)finis.push(c);
+    if(Math.max(0,prixC(c)-paye(c))>0&&prixC(c)>0&&paye(c)/prixC(c)<.5&&done>=max/2)impayes.push(c);
+  });
+  if(inactifs.length)out.push('<div class="alert">😴 <b>'+inactifs.length+'</b> élève(s) en cours sans séance depuis plus de '+CFG.inactifJours+' jours (avec séances restantes)</div>');
+  if(finis.length)out.push('<div class="alert r">💸 <b>'+finis.length+'</b> élève(s) ont consommé toutes leurs séances mais ont un solde à payer : '+fmt(finis.reduce(function(a,c){return a+prixC(c)-paye(c)},0))+'</div>');
+  if(impayes.length)out.push('<div class="alert">📉 <b>'+impayes.length+'</b> élève(s) ont déjà fait la moitié de leurs séances avec moins de 50 % payé</div>');
+  var f=finance(curYM());if(!f.dep)out.push('<div class="alert">🧾 Aucune dépense saisie ce mois : le résultat affiché = encaissements seuls (onglet Finance)</div>');
+  return out.length?out.join(""):'<div class="alert g">✅ Rien à signaler</div>'}
+
+function rFin(){
+  var v=curYM(),f=finance(v);
+  var h=monthSel()
+   +'<div class="card"><h2>Mois de '+ymLabel(v)+'</h2><table>'
+   +'<tr><td>CA (contrats signés) <span class="tag t-real">réel</span></td><td align="right"><b>'+fmt(f.ca)+'</b></td></tr>'
+   +'<tr><td>Encaissé sur contrats ('+f.encN+' versements)</td><td align="right"><b>'+fmt(f.enc)+'</b></td></tr>'
+   +'<tr><td>Encaissé séances à l\'heure</td><td align="right"><b>'+fmt(f.heure)+'</b></td></tr>'
+   +'<tr><td>Dépenses saisies</td><td align="right"><b class="neg">'+fmt(f.dep)+'</b></td></tr>'
+   +'<tr><td>Résultat estimé <span class="tag t-est">estimation</span></td><td align="right"><b class="'+(f.res>=0?"pos":"neg")+'">'+fmt(f.res)+'</b></td></tr>'
+   +'<tr><td>Reste à encaisser (tous élèves)</td><td align="right"><b>'+fmt(f.reste)+'</b></td></tr></table>'
+   +'<p class="note" style="margin-top:8px">CA = prix des contrats des élèves inscrits ce mois. Encaissement = versements réellement reçus. Le résultat n\'a de sens que si les dépenses sont saisies.</p></div>'
+   +'<div class="card"><h2>Évolution des encaissements</h2>'+chart(serie12(function(m){var x=finance(m);return {t:x.enc+x.heure}}),"t","o")+'</div>'
+   +'<div class="card"><h2>Évolution du CA</h2>'+chart(serie12(function(m){return {t:finance(m).ca}}),"t")+'</div>'
+   +'<div class="card"><h2>CA par catégorie de permis</h2>'+parCat(v)+'</div>'
+   +'<div class="card"><h2>Ajouter une dépense</h2><input type="date" id="d-date"><input type="text" id="d-lib" placeholder="Libellé (carburant, loyer, salaire…)"><input type="number" id="d-mt" placeholder="Montant DH"><button class="btn dark" style="width:100%;padding:11px" onclick="addDep()">Enregistrer</button>'
+   +'<div class="wrap" style="margin-top:10px"><table>'+DEPENSES.slice().reverse().slice(0,15).map(function(d,i){return '<tr><td>'+d.date+'</td><td>'+d.lib+'</td><td align="right">'+fmt(d.montant)+'</td><td><button class="btn" onclick="delDep('+(DEPENSES.length-1-i)+')">✕</button></td></tr>'}).join("")+'</table></div>'
+   +'<p class="note">Les dépenses sont enregistrées sur cet appareil uniquement (jamais dans la base de gestion).</p></div>';
+  document.getElementById("p-fin").innerHTML=h}
+function parCat(v){var m={};DATA.clients.forEach(function(c){var di=pd(c.inscription)||pd(c.createdAt);if(ym(di)===v){var k=c.categorie||"B";m[k]=(m[k]||0)+prixC(c)}});
+  var ks=Object.keys(m);if(!ks.length)return '<p class="note">Aucune inscription ce mois.</p>';
+  var tot=ks.reduce(function(a,k){return a+m[k]},0);return ks.map(function(k){return '<div style="margin-bottom:8px;font-size:12px"><div class="hrow"><span>Catégorie '+k+'</span><b>'+fmt(m[k])+'</b></div><div class="bar"><i style="width:'+pct(m[k],tot)+'%"></i></div></div>'}).join("")}
+function addDep(){var d=document.getElementById("d-date").value,l=document.getElementById("d-lib").value.trim(),m=Number(document.getElementById("d-mt").value);if(!d||!m){alert("Date et montant obligatoires");return}
+  var p=d.split("-");DEPENSES.push({date:(+p[2])+"/"+(+p[1])+"/"+p[0],lib:l||"Dépense",montant:m});save("achBI_dep",DEPENSES);start()}
+function delDep(i){if(confirm("Supprimer cette dépense ?")){DEPENSES.splice(i,1);save("achBI_dep",DEPENSES);start()}}
+
+function rPacks(){
+  var st=packStats(),tot=0;Object.keys(st).forEach(function(k){tot+=st[k].n});
+  var rows=Object.keys(PACKS).map(function(k){var o=st[k],p=PACKS[k];
+    var rev=o.n?o.ca/o.n:0,parS=o.quota?o.ca/o.quota:0,parC=o.cons?o.paye/o.cons:0;
+    return '<tr><td><b>'+p.n+'</b><br><span class="note">'+p.s+' séances</span></td><td>'+o.n+'<br><span class="note">'+pct(o.n,tot)+'%</span></td><td>'+fmt(rev)+'</td><td>'+fmt(parS)+'</td><td>'+o.cons+'/'+o.quota+'</td></tr>'}).join("");
+  var h='<div class="card"><h2>Ventes par pack (tous les élèves)</h2><div class="wrap"><table><tr><th>Pack</th><th>Ventes</th><th>Prix moyen</th><th>DH / séance</th><th>Consommé</th></tr>'+rows+'</table></div></div>'
+   +'<div class="card"><h2>Rentabilité</h2><table><tr><th>Pack</th><th>Marge / séance</th></tr>'+Object.keys(PACKS).map(function(k){var o=st[k],cs=(Number(CFG.coutSeance)||0),ps=o.quota?o.ca/o.quota:0;return '<tr><td>'+PACKS[k].n+'</td><td>'+(cs?fmt(ps-cs)+' <span class="tag t-est">estim.</span>':'—')+'</td></tr>'}).join("")+'</table>'
+   +'<input type="number" id="cs" placeholder="Coût estimé d\'une séance (DH)" value="'+(CFG.coutSeance||"")+'" style="margin-top:10px"><button class="btn dark" style="width:100%;padding:11px" onclick="CFG.coutSeance=+document.getElementById(\'cs\').value;save(\'achBI_cfg\',CFG);start()">Calculer la marge</button>'
+   +'<p class="note" style="margin-top:8px">Sans coût par séance (carburant, moniteur, voiture), la rentabilité ne peut pas être affirmée : seul le prix par séance est comparé.</p></div>'
+   +'<div class="card"><h2>💡 Lecture</h2>'+lecturePacks(st,tot)+'</div>';
+  document.getElementById("p-packs").innerHTML=h}
+function lecturePacks(st,tot){
+  if(tot<10)return '<p class="note">Pas assez de données pour conclure.</p>';
+  var ks=Object.keys(st).filter(function(k){return st[k].n>0}),best=ks.sort(function(a,b){return st[b].n-st[a].n})[0];
+  var o=ks.map(function(k){return {k:k,ps:st[k].ca/st[k].quota}}).sort(function(a,b){return b.ps-a.ps});
+  return '<div class="alert g">Pack le plus vendu : <b>'+PACKS[best].n+'</b> ('+pct(st[best].n,tot)+'% des ventes).</div><div class="alert">Meilleur prix par séance : <b>'+PACKS[o[0].k].n+'</b> ('+fmt(o[0].ps)+'), le plus faible : <b>'+PACKS[o[o.length-1].k].n+'</b> ('+fmt(o[o.length-1].ps)+'). <span class="tag t-real">réel</span></div>'}
+
+function rVeh(){
+  var v=curYM(),vs=vehStats(v),jours=22,dispo=jours*HEURES_DISPO_JOUR*60;
+  var h=monthSel();
+  [1,2].forEach(function(n){var r=vs[n],occ=pct(r.mois*45,dispo),top=Object.keys(r.heures).sort(function(a,b){return r.heures[b]-r.heures[a]}).slice(0,3);
+    h+='<div class="card"><h2>🚗 Voiture '+n+'</h2><div class="grid">'+kpi("Séances (total)",r.done)+kpi("Ce mois",r.mois)+kpi("Heures de conduite",Math.round(r.min/60)+" h")+kpi("Annulées",r.ann)+'</div>'
+     +'<p class="note" style="margin-top:8px">Taux d\'occupation du mois : <b>'+occ+'%</b> <span class="tag t-est">estimé : '+jours+' j × '+HEURES_DISPO_JOUR+' h</span></p><div class="bar"><i style="width:'+Math.min(100,occ)+'%"></i></div>'
+     +'<p class="note" style="margin-top:6px">Heures les plus demandées : '+(top.length?top.map(function(x){return x+"h ("+r.heures[x]+")"}).join(", "):"—")+'</p></div>'});
+  var a=vs[1].done,b=vs[2].done;
+  h+='<div class="card"><h2>💡 Comparaison</h2>'+((a+b)<10?'<p class="note">Pas assez de données.</p>':'<div class="alert">'+(a===b?"Les deux voitures sont utilisées à égalité.":'La voiture <b>'+(a>b?1:2)+'</b> est la plus utilisée ('+Math.max(a,b)+' séances contre '+Math.min(a,b)+').')+'</div>')+'</div>';
+  document.getElementById("p-veh").innerHTML=h}
+
+function rCand(){
+  var c=DATA.clients,cnt={};c.forEach(function(x){var s=x.statut||"en-cours";cnt[s]=(cnt[s]||0)+1});
+  var term=(cnt.reussi||0)+(cnt.echoue||0),taux=pct(cnt.reussi||0,term);
+  var S=seancesRealisees(),n=0;c.forEach(function(x){if(x.statut==="reussi"||x.statut==="echoue"){n++}});
+  var h='<div class="grid">'+kpi("Total inscrits",c.length)+kpi("En cours",cnt["en-cours"]||0)+kpi("Réussis",cnt.reussi||0,"",'pos')+kpi("Échoués",cnt.echoue||0,"","neg")+kpi("Abandons",cnt.abandonne||0)+kpi("Taux de réussite",term?taux+"%":"—",term+" examens")+'</div>'
+   +'<div class="card" style="margin-top:12px"><h2>Inscriptions (12 mois)</h2>'+chart(serie12(function(m){return {t:finance(m).nb}}),"t")+'</div>'
+   +'<div class="card"><h2>Seuil d\'inactivité</h2><input type="number" id="ij" value="'+CFG.inactifJours+'"><button class="btn dark" style="width:100%;padding:11px" onclick="CFG.inactifJours=+document.getElementById(\'ij\').value||15;save(\'achBI_cfg\',CFG);start()">Enregistrer (jours)</button></div>'
+   +'<div class="card"><h2>Alertes</h2>'+alertes()+'</div>';
+  document.getElementById("p-cand").innerHTML=h}
+
+function start(){
+  document.getElementById("load").style.display="none";
+  document.getElementById("sync").textContent="Données du "+new Date(DATA.ts).toLocaleString("fr-FR")+" · "+DATA.clients.length+" élèves";
+  try{rDash();rFin();rPacks();rVeh();rCand()}catch(e){document.getElementById("load").style.display="block";document.getElementById("load").textContent="Erreur d'affichage : "+e.message}
+}
+refresh(false);
+</script>
+</body>
+</html>
